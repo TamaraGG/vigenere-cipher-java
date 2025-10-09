@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="analysis.FrequencyAnalyzerTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2025-10-08T17:40:08.138Z" hostname="DESKTOP-LDCOEJP" time="0.068">
+  <properties/>
+  <testcase name="Анализатор должен найти правильный ключ ('F') для текста, зашифрованного Цезарем" classname="analysis.FrequencyAnalyzerTest" time="0.068"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

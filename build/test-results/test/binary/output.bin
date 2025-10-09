@@ -1,0 +1,9 @@
+(--- Starting Vigenere Breaker Test ---
+Original Key: CRYPTO
+Ciphertext length: 248
+Analyzing key length...
+!Most likely key length found: 6
+Finding the key...
+Key found: CRYPTO
+Final decryption...
+--- Test Finished ---

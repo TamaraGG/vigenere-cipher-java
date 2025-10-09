@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="analysis.VigenereBreakerTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2025-10-08T17:40:08.225Z" hostname="DESKTOP-LDCOEJP" time="0.031">
+  <properties/>
+  <testcase name="testFullBreakCipherSuccess()" classname="analysis.VigenereBreakerTest" time="0.031"/>
+  <system-out><![CDATA[--- Starting Vigenere Breaker Test ---
+Original Key: CRYPTO
+Ciphertext length: 248
+Analyzing key length...
+Most likely key length found: 6
+Finding the key...
+Key found: CRYPTO
+Final decryption...
+--- Test Finished ---
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
