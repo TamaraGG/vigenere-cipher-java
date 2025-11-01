@@ -10,20 +10,21 @@ import java.util.Scanner;
 
 /**
  * Класс, отвечающий за взаимодействие с пользователем через консоль.
- * Он управляет основным циклом программы, отображает меню, обрабатывает
- * ввод пользователя и координирует вызовы других компонентов
- * (шифратора, взломщика, файлового сервиса).
+ * Управляет основным циклом программы, отображает меню, обрабатывает
+ * ввод и координирует вызовы других компонентов.
  */
 public class ConsoleUI {
 
-    // Поля класса для хранения экземпляров ключевых компонентов:
-    // Scanner для чтения ввода, VigenereCipher для шифрования/дешифрования,
+    // Поля класса для хранения ключевых компонентов:
+    // Scanner для чтения ввода, VigenereCipher для шифрования,
     // и VigenereBreaker для выполнения криптоанализа.
     private final Scanner scanner;
     private final VigenereCipher vigenereCipher;
     private final VigenereBreaker vigenereBreaker;
 
-    // Конструктор класса. Инициализирует все необходимые объекты при создании экземпляра ConsoleUI.
+    /**
+     * Конструктор класса. Инициализирует все необходимые объекты.
+     */
     public ConsoleUI() {
         this.scanner = new Scanner(System.in);
         this.vigenereCipher = new VigenereCipher();
@@ -31,9 +32,9 @@ public class ConsoleUI {
     }
 
     /**
-     * Основной метод, запускающий главный цикл программы. В цикле отображается
-     * меню, считывается выбор пользователя и вызывается соответствующий
-     * метод-обработчик. Цикл завершается, когда пользователь выбирает опцию выхода.
+     * Основной метод, запускающий главный цикл программы. Отображает
+     * меню, считывает выбор пользователя и вызывает соответствующий
+     * метод-обработчик.
      */
     public void run() {
         while (true) {
@@ -52,19 +53,19 @@ public class ConsoleUI {
                     break;
                 case "4":
                     System.out.println("Exiting the program.");
-                    return; // Выход из метода run() и завершение программы
+                    return; // Выход из метода и завершение программы.
                 default:
                     System.out.println("Invalid input. Please choose an option from 1 to 4.");
                     break;
             }
-            // Пауза, чтобы пользователь успел прочитать результат перед возвратом в меню.
+            // Пауза, чтобы пользователь успел прочитать результат.
             System.out.println("\nPress Enter to continue...");
             scanner.nextLine();
         }
     }
 
     /**
-     * Вспомогательный метод, который выводит в консоль главное меню программы.
+     * Вспомогательный метод, который выводит в консоль главное меню.
      */
     private void printMenu() {
         System.out.println("\n--- Vigenere Cipher Tool ---");
@@ -77,42 +78,40 @@ public class ConsoleUI {
 
 
     /**
-     * Вспомогательный метод для улучшения пользовательского опыта. Он запрашивает
-     * у пользователя путь к файлу в цикле до тех пор, пока не будет введен
-     * корректный путь к существующему файлу. Предоставляет пользователю
-     * возможность отменить операцию, введя пустую строку.
+     * Запрашивает у пользователя путь к файлу в цикле, пока не будет введен
+     * корректный путь. Позволяет отменить операцию, введя пустую строку.
      */
     private String promptForValidFilePath(String prompt) {
         while (true) {
             System.out.print(prompt);
             String path = scanner.nextLine();
 
-            // Если пользователь ничего не ввел и нажал Enter - отмена.
+            // Если пользователь нажал Enter - отмена.
             if (path.isBlank()) {
                 System.out.println("Operation cancelled by user.");
                 return null;
             }
 
-            // Проверяем, существует ли файл по указанному пути.
+            // Проверяем, существует ли файл.
             if (Files.exists(Paths.get(path))) {
-                return path; // Путь корректный, возвращаем его.
+                return path; // Путь корректный.
             } else {
-                // Файл не найден, сообщаем об ошибке и просим ввести снова.
+                // Файл не найден, сообщаем об ошибке.
                 System.out.println("File not found at the specified path. Please try again or press Enter to cancel.");
             }
         }
     }
 
     /**
-     * Метод-обработчик для опции шифрования. Он последовательно запрашивает у пользователя
-     * все необходимые данные (пути к файлам, ключ), вызывает сервисы для чтения
-     * файла и выполнения шифрования, а затем сохраняет результат.
+     * Метод-обработчик для шифрования. Запрашивает все необходимые данные
+     * (пути, ключ), вызывает сервисы для чтения и шифрования, сохраняет результат.
      */
     private void handleEncryption() {
         System.out.println("\n--- File Encryption ---");
 
+        // Запрашиваем пути и ключ.
         String inputPath = promptForValidFilePath("Enter the path to the source file: ");
-        if (inputPath == null) return; // Пользователь отменил ввод.
+        if (inputPath == null) return; // Отмена.
 
         System.out.print("Enter the path to save the result: ");
         String outputPath = scanner.nextLine();
@@ -124,14 +123,14 @@ public class ConsoleUI {
         System.out.print("Enter the keyword: ");
         String key = scanner.nextLine();
 
+        // Читаем, шифруем и записываем файл.
         String plainText = FileService.readFile(inputPath);
-        if (plainText == null) {
-            return;
-        }
+        if (plainText == null) return;
 
         String cipherText = vigenereCipher.encrypt(plainText, key);
         boolean success = FileService.writeFile(outputPath, cipherText);
 
+        // Сообщаем результат.
         if (success) {
             System.out.println("File encrypted successfully and saved to: " + outputPath);
         } else {
@@ -140,8 +139,8 @@ public class ConsoleUI {
     }
 
     /**
-     * Метод-обработчик для опции расшифровки. Его логика аналогична
-     * методу шифрования, но вызывает метод decrypt у объекта VigenereCipher.
+     * Метод-обработчик для расшифровки. Логика аналогична
+     * шифрованию, но вызывает метод decrypt.
      */
     private void handleDecryption() {
         System.out.println("\n--- File Decryption ---");
@@ -160,9 +159,7 @@ public class ConsoleUI {
         String key = scanner.nextLine();
 
         String cipherText = FileService.readFile(inputPath);
-        if (cipherText == null) {
-            return;
-        }
+        if (cipherText == null) return;
 
         String plainText = vigenereCipher.decrypt(cipherText, key);
         boolean success = FileService.writeFile(outputPath, plainText);
@@ -175,13 +172,11 @@ public class ConsoleUI {
     }
 
     /**
-     * Метод-обработчик для опции взлома шифра. Запрашивает пути к файлам
-     * и вызывает метод breakCipher у объекта VigenereBreaker для выполнения
-     * криптоанализа.
+     * Метод-обработчик для взлома шифра. Вызывает VigenereBreaker
+     * для выполнения криптоанализа.
      */
     private void handleBreakCipher() {
         System.out.println("\n--- Break Vigenere Cipher ---");
-        System.out.println("Note: The analyzer will search for keys up to 20 characters long.");
 
         String inputPath = promptForValidFilePath("Enter the path to the encrypted file: ");
         if (inputPath == null) return;
@@ -194,11 +189,24 @@ public class ConsoleUI {
         }
 
         String cipherText = FileService.readFile(inputPath);
-        if (cipherText == null) {
-            return;
+        if (cipherText == null) return;
+
+        // Определяем максимальную длину ключа для поиска и информируем пользователя.
+        String preparedText = cipherText.replaceAll("[^a-zA-Z]", "");
+        int maxKeyLength = VigenereBreaker.calculateMaxKeyLength(preparedText.length());
+
+        if (maxKeyLength < VigenereBreaker.MIN_KEY_LENGTH) {
+            System.out.println("Warning: The provided text is very short. Analysis will only be attempted for a Caesar cipher (key length 1). The result may be incorrect.");
+        } else if (maxKeyLength == 1) {
+            System.out.println("Note: The text is long enough only for a reliable Caesar cipher check (key length 1).");
+        } else {
+            System.out.println("Note: Based on the text length, the analyzer will search for keys from 1 up to " + maxKeyLength + " characters long.");
         }
 
+        // Запускаем анализ и сохраняем результат.
+        System.out.println("Starting analysis...");
         String plainText = vigenereBreaker.breakCipher(cipherText);
+
         boolean success = FileService.writeFile(outputPath, plainText);
 
         if (success) {

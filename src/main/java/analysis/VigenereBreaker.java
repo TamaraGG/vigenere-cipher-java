@@ -1,5 +1,6 @@
 package analysis;
 
+import analysis.FrequencyAnalyzer;
 import cipher.VigenereCipher;
 
 import java.util.ArrayList;
@@ -10,67 +11,96 @@ import java.util.Map;
 /**
  * Класс, реализующий полный процесс взлома шифра Виженера. Он последовательно
  * определяет длину ключа и его состав, используя комбинацию статистических методов.
- * (Версия с улучшенным определением длины ключа)
  */
 public class VigenereBreaker {
 
-    // Зависимости от других классов: FrequencyAnalyzer для анализа колонок текста
-    // и VigenereCipher для финальной расшифровки.
+    // Объекты-помощники для выполнения анализа и расшифровки.
     private final FrequencyAnalyzer frequencyAnalyzer;
     private final VigenereCipher vigenereCipher;
 
-    // Константы, определяющие параметры криптоанализа.
-    private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    // Эталонное значение Индекса Совпадений для английского языка.
-    private static final double ENGLISH_IC = 0.065;
-    // Минимальная и максимальная длина ключа, которую будет проверять анализатор.
-    private static final int MIN_KEY_LENGTH = 2;
-    private static final int MAX_KEY_LENGTH = 20;
+    // Минимальная длина ключа для проверки. Установлена в 1 для поддержки шифра Цезаря.
+    public static final int MIN_KEY_LENGTH = 1;
 
-    // Конструктор класса, инициализирующий необходимые объекты.
+    // Минимальное количество символов в "колонке" для надежной статистики.
+    private static final int MIN_STREAM_LENGTH_FOR_STATS = 50;
+    // Абсолютный потолок, чтобы избежать слишком долгих вычислений на огромных файлах.
+    private static final int ABSOLUTE_MAX_KEY_LENGTH = 50;
+
+    // Константы для анализа: алфавит и эталонный Индекс Совпадений для английского языка.
+    private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    private static final double ENGLISH_IC = 0.065;
+
+    /**
+     * Конструктор класса, инициализирующий необходимые объекты.
+     */
     public VigenereBreaker() {
         this.frequencyAnalyzer = new FrequencyAnalyzer();
         this.vigenereCipher = new VigenereCipher();
     }
 
     /**
-     * Главный публичный метод, который запускает и координирует весь процесс взлома.
-     * Он последовательно выполняет три шага: подготовка текста, определение
-     * длины ключа и определение самого ключа, после чего выполняет финальную расшифровку.
-     * Промежуточные результаты выводятся в консоль для наглядности.
+     * Рассчитывает максимальную длину ключа для проверки, исходя из длины текста.
+     * Это делается, чтобы обеспечить достаточно данных для надежного анализа.
+     * @param textLength Длина зашифрованного текста.
+     * @return Рассчитанная максимальная длина ключа.
+     */
+    public static int calculateMaxKeyLength(int textLength) {
+        // Рассчитываем лимит, деля общую длину на минимально необходимую для одной "колонки".
+        int dynamicLimit = textLength / MIN_STREAM_LENGTH_FOR_STATS;
+        // Возвращаем меньшее из двух: рассчитанный лимит или абсолютный потолок.
+        return Math.min(dynamicLimit, ABSOLUTE_MAX_KEY_LENGTH);
+    }
+
+    /**
+     * Главный метод, запускающий и координирующий весь процесс взлома.
+     * Последовательно выполняет все шаги и выводит промежуточные результаты.
      */
     public String breakCipher(String cipherText) {
+        // Шаг 1: Очистка текста от лишних символов.
         String preparedText = prepareText(cipherText);
 
+        // Шаг 2: Определение наиболее вероятной длины ключа.
         System.out.println("Analyzing key length...");
         int keyLength = findKeyLength(preparedText);
         System.out.println("Most likely key length found: " + keyLength);
 
+        // Шаг 3: Определение состава ключа (самих букв).
         System.out.println("Finding the key...");
         String key = findKey(preparedText, keyLength);
         System.out.println("Key found: " + key);
 
+        // Шаг 4: Финальная расшифровка с найденным ключом.
         System.out.println("Final decryption...");
         return vigenereCipher.decrypt(preparedText, key);
     }
 
     /**
-     * Определяет наиболее вероятную длину ключа. Работает в несколько этапов:
-     * 1. Для каждой возможной длины ключа вычисляется средний Индекс Совпадений (IC).
-     * 2. Находится длина, для которой средний IC наиболее близок к эталонному значению.
-     * 3. (Улучшение) Проверяются делители найденной длины-кандидата. Истинная длина ключа
-     *    часто является наименьшим делителем, который также показывает высокий IC.
-     *    Это позволяет избежать выбора длин, кратных истинной (например, 15 вместо 5).
+     * Определяет наиболее вероятную длину ключа методом Индекса Совпадений (IC).
+     * 1. Для каждой возможной длины ключа вычисляется средний IC.
+     * 2. Находится длина, для которой средний IC наиболее близок к эталонному (0.065).
+     * 3. Проверяются делители найденной длины, чтобы избежать выбора длин, кратных
+     *    истинной (например, 10 вместо 5).
      */
     private int findKeyLength(String text) {
+        // Динамически определяем максимальную длину ключа для поиска.
+        int maxKeyToTest = calculateMaxKeyLength(text.length());
+
+        // Обработка очень коротких текстов: пытаемся взломать как шифр Цезаря.
+        if (maxKeyToTest < MIN_KEY_LENGTH) {
+            System.out.println("Warning: Ciphertext is too short for a reliable analysis. Defaulting to Caesar cipher check (key length 1).");
+            maxKeyToTest = 1;
+        }
+
         Map<Integer, Double> allScores = new HashMap<>();
 
-        // Шаг 1: Рассчитываем средний IC для каждой возможной длины ключа.
-        for (int keyLength = MIN_KEY_LENGTH; keyLength <= MAX_KEY_LENGTH; keyLength++) {
+        // Перебираем все возможные длины ключа от 1 до рассчитанного максимума.
+        for (int keyLength = MIN_KEY_LENGTH; keyLength <= maxKeyToTest; keyLength++) {
+            // Разделяем текст на "колонки" (потоки).
             StringBuilder[] streams = new StringBuilder[keyLength];
             for (int i = 0; i < keyLength; i++) streams[i] = new StringBuilder();
             for (int i = 0; i < text.length(); i++) streams[i % keyLength].append(text.charAt(i));
 
+            // Считаем средний IC для данной длины ключа.
             double totalIc = 0.0;
             for (int i = 0; i < keyLength; i++) {
                 totalIc += calculateIndexOfCoincidence(streams[i].toString());
@@ -78,27 +108,27 @@ public class VigenereBreaker {
             allScores.put(keyLength, totalIc / keyLength);
         }
 
-        // Шаг 2: Находим длину с лучшим (наиболее близким к английскому) IC.
+        // Находим длину с самым "лучшим" показателем IC.
         int bestScoringLength = 0;
-        double bestScore = 0.0;
+        double bestScore = -1.0;
         for (Map.Entry<Integer, Double> entry : allScores.entrySet()) {
-            if (Math.abs(entry.getValue() - ENGLISH_IC) < Math.abs(bestScore - ENGLISH_IC)) {
+            if (bestScore < 0 || Math.abs(entry.getValue() - ENGLISH_IC) < Math.abs(bestScore - ENGLISH_IC)) {
                 bestScore = entry.getValue();
                 bestScoringLength = entry.getKey();
             }
         }
 
-        // Шаг 3: Проверяем делители лучшего кандидата.
-        List<Integer> factors = getFactors(bestScoringLength);
-        for (int factor : factors) {
-            // Проверяем, является ли IC для этого делителя также "хорошим".
-            if (allScores.getOrDefault(factor, 0.0) > (ENGLISH_IC - 0.01)) {
-                // Возвращаем первый же "хороший" делитель, он будет самым маленьким.
-                return factor;
+        // Улучшение: проверяем делители лучшего кандидата.
+        if (bestScoringLength > 1) {
+            List<Integer> factors = getFactors(bestScoringLength);
+            for (int factor : factors) {
+                // Если у делителя тоже высокий IC, скорее всего, он и есть истинная длина.
+                if (allScores.getOrDefault(factor, 0.0) > (ENGLISH_IC - 0.01)) {
+                    return factor;
+                }
             }
         }
 
-        // Если ни один из делителей не подходит, возвращаем лучший изначальный вариант.
         return bestScoringLength;
     }
 
@@ -133,16 +163,17 @@ public class VigenereBreaker {
     }
 
     /**
-     * Метод для определения состава ключа, когда его длина уже известна.
-     * Он разделяет шифротекст на потоки (колонки) в соответствии с длиной ключа.
-     * Затем для каждой колонки с помощью FrequencyAnalyzer находится наиболее
-     * вероятный символ ключа. Найденные символы объединяются в итоговый ключ.
+     * Определяет состав ключа, когда его длина уже известна.
+     * Разделяет шифротекст на "колонки" и для каждой из них находит
+     * наиболее вероятный символ ключа с помощью частотного анализа.
      */
     private String findKey(String text, int keyLength) {
+        // Разделяем текст на "колонки" по числу букв в ключе.
         StringBuilder[] streams = new StringBuilder[keyLength];
         for (int i = 0; i < keyLength; i++) streams[i] = new StringBuilder();
         for (int i = 0; i < text.length(); i++) streams[i % keyLength].append(text.charAt(i));
 
+        // Для каждой "колонки" находим свою букву ключа.
         StringBuilder key = new StringBuilder();
         for (int i = 0; i < keyLength; i++) {
             key.append(frequencyAnalyzer.findMostLikelyKeyChar(streams[i].toString()));
