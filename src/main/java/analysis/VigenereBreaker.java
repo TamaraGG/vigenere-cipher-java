@@ -1,6 +1,5 @@
 package analysis;
 
-import analysis.FrequencyAnalyzer;
 import cipher.VigenereCipher;
 
 import java.util.ArrayList;
@@ -56,21 +55,21 @@ public class VigenereBreaker {
      * Последовательно выполняет все шаги и выводит промежуточные результаты.
      */
     public String breakCipher(String cipherText) {
-        // Шаг 1: Очистка текста от лишних символов.
         String preparedText = prepareText(cipherText);
+        if (preparedText.isEmpty()) {
+            System.out.println("Cannot analyze an empty or non-alphabetic text.");
+            return "";
+        }
 
-        // Шаг 2: Определение наиболее вероятной длины ключа.
-        System.out.println("Analyzing key length...");
+        System.out.println("\n--- Step 1: Analyzing Key Length ---");
         int keyLength = findKeyLength(preparedText);
-        System.out.println("Most likely key length found: " + keyLength);
+        System.out.println("--- RESULT: Most likely key length is " + keyLength + " ---\n");
 
-        // Шаг 3: Определение состава ключа (самих букв).
-        System.out.println("Finding the key...");
+        System.out.println("--- Step 2: Finding Key Characters ---");
         String key = findKey(preparedText, keyLength);
-        System.out.println("Key found: " + key);
+        System.out.println("--- RESULT: Key found: \"" + key + "\" ---\n");
 
-        // Шаг 4: Финальная расшифровка с найденным ключом.
-        System.out.println("Final decryption...");
+        System.out.println("--- Step 3: Final Decryption ---");
         return vigenereCipher.decrypt(preparedText, key);
     }
 
@@ -82,33 +81,31 @@ public class VigenereBreaker {
      *    истинной (например, 10 вместо 5).
      */
     private int findKeyLength(String text) {
-        // Динамически определяем максимальную длину ключа для поиска.
         int maxKeyToTest = calculateMaxKeyLength(text.length());
 
-        // Обработка очень коротких текстов: пытаемся взломать как шифр Цезаря.
         if (maxKeyToTest < MIN_KEY_LENGTH) {
-            System.out.println("Warning: Ciphertext is too short for a reliable analysis. Defaulting to Caesar cipher check (key length 1).");
+            System.out.println("Warning: Ciphertext is too short. Defaulting to Caesar cipher check (key length 1).");
             maxKeyToTest = 1;
         }
 
         Map<Integer, Double> allScores = new HashMap<>();
+        System.out.println("Calculating average Index of Coincidence (IC) for each possible key length...");
+        System.out.println("(Target IC for English text is approx. " + ENGLISH_IC + ")");
 
-        // Перебираем все возможные длины ключа от 1 до рассчитанного максимума.
         for (int keyLength = MIN_KEY_LENGTH; keyLength <= maxKeyToTest; keyLength++) {
-            // Разделяем текст на "колонки" (потоки).
             StringBuilder[] streams = new StringBuilder[keyLength];
             for (int i = 0; i < keyLength; i++) streams[i] = new StringBuilder();
             for (int i = 0; i < text.length(); i++) streams[i % keyLength].append(text.charAt(i));
 
-            // Считаем средний IC для данной длины ключа.
             double totalIc = 0.0;
             for (int i = 0; i < keyLength; i++) {
                 totalIc += calculateIndexOfCoincidence(streams[i].toString());
             }
-            allScores.put(keyLength, totalIc / keyLength);
+            double averageIc = totalIc / keyLength;
+            allScores.put(keyLength, averageIc);
+            System.out.println(String.format("  - Key Length %2d: Average IC = %.5f", keyLength, averageIc));
         }
 
-        // Находим длину с самым "лучшим" показателем IC.
         int bestScoringLength = 0;
         double bestScore = -1.0;
         for (Map.Entry<Integer, Double> entry : allScores.entrySet()) {
@@ -117,15 +114,19 @@ public class VigenereBreaker {
                 bestScoringLength = entry.getKey();
             }
         }
+        System.out.println("\nInitial analysis suggests the best key length is " + bestScoringLength + " (IC score: " + String.format("%.5f", bestScore) + ")");
 
-        // Улучшение: проверяем делители лучшего кандидата.
         if (bestScoringLength > 1) {
             List<Integer> factors = getFactors(bestScoringLength);
-            for (int factor : factors) {
-                // Если у делителя тоже высокий IC, скорее всего, он и есть истинная длина.
-                if (allScores.getOrDefault(factor, 0.0) > (ENGLISH_IC - 0.01)) {
-                    return factor;
+            if (!factors.isEmpty()) {
+                System.out.println("Checking factors of " + bestScoringLength + " for harmonic errors: " + factors);
+                for (int factor : factors) {
+                    if (allScores.getOrDefault(factor, 0.0) > (ENGLISH_IC - 0.01)) { // Небольшой допуск
+                        System.out.println("Factor " + factor + " also shows a high IC. It is a more likely candidate.");
+                        return factor;
+                    }
                 }
+                System.out.println("No smaller factor found with a high IC. Sticking with " + bestScoringLength + ".");
             }
         }
 
@@ -168,15 +169,31 @@ public class VigenereBreaker {
      * наиболее вероятный символ ключа с помощью частотного анализа.
      */
     private String findKey(String text, int keyLength) {
-        // Разделяем текст на "колонки" по числу букв в ключе.
         StringBuilder[] streams = new StringBuilder[keyLength];
         for (int i = 0; i < keyLength; i++) streams[i] = new StringBuilder();
         for (int i = 0; i < text.length(); i++) streams[i % keyLength].append(text.charAt(i));
 
-        // Для каждой "колонки" находим свою букву ключа.
         StringBuilder key = new StringBuilder();
         for (int i = 0; i < keyLength; i++) {
-            key.append(frequencyAnalyzer.findMostLikelyKeyChar(streams[i].toString()));
+            System.out.println(String.format("  - Analyzing stream %d of %d...", i + 1, keyLength));
+
+            AnalysisResult result = frequencyAnalyzer.findMostLikelyKeyChar(streams[i].toString());
+            char foundChar = result.bestKeyChar();
+
+            // Выводим ТОП-3 лучших кандидатов
+            System.out.println("    Top 3 candidates (lower Chi-squared is better):");
+            int count = 0;
+            for (Map.Entry<Character, Double> entry : result.chiSquaredScores().entrySet()) {
+                if (count < 3) {
+                    System.out.println(String.format("      - Key '%c': score = %.2f", entry.getKey(), entry.getValue()));
+                    count++;
+                } else {
+                    break;
+                }
+            }
+
+            System.out.println(String.format("    >> Best match found: '%c'", foundChar));
+            key.append(foundChar);
         }
         return key.toString();
     }

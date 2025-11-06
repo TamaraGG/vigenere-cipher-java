@@ -1,7 +1,9 @@
 package analysis;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Класс, реализующий логику частотного анализа. Основная задача — определить
@@ -39,26 +41,36 @@ public class FrequencyAnalyzer {
      * Ключ, давший наилучший результат (наименьшее значение "Хи-квадрат"),
      * возвращается как наиболее вероятный.
      */
-    public char findMostLikelyKeyChar(String subtext) {
+    public AnalysisResult findMostLikelyKeyChar(String subtext) {
         double minChiSquared = Double.POSITIVE_INFINITY;
         char bestKeyChar = 'A';
+        Map<Character, Double> allScores = new HashMap<>();
 
-        // Перебираем все возможные сдвиги (все 26 букв алфавита как ключ).
         for (int i = 0; i < ALPHABET.length(); i++) {
             char potentialKeyChar = ALPHABET.charAt(i);
             String decryptedText = decryptCaesar(subtext, potentialKeyChar);
-
-            // Считаем статистику для расшифрованного текста.
             double chiSquared = calculateChiSquared(decryptedText);
 
-            // Если текущая статистика лучше (меньше), чем лучшая из найденных,
-            // обновляем лучшую статистику и лучший ключ.
+            allScores.put(potentialKeyChar, chiSquared);
+
             if (chiSquared < minChiSquared) {
                 minChiSquared = chiSquared;
                 bestKeyChar = potentialKeyChar;
             }
         }
-        return bestKeyChar;
+
+        // Сортируем карту с оценками для наглядного вывода (по возрастанию оценки)
+        Map<Character, Double> sortedScores = allScores.entrySet()
+                .stream()
+                .sorted(Map.Entry.comparingByValue())
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (e1, e2) -> e1,
+                        LinkedHashMap::new
+                ));
+
+        return new AnalysisResult(bestKeyChar, sortedScores);
     }
 
     /**
